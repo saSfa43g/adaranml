@@ -405,4 +405,4 @@ client.on('interactionCreate', async (interaction) => {
       }
   }
 })
-client.login("MTE1MTc5NjMxMzU5NjM3OTEzNg.GPQSHa.mC4Di6Xcm18b8kkff1RpFGOJN3ZD115hrxT3GY")
+client.login('MTE1MTc5NjMxMzU5NjM3OTEzNg.GPQSHa.mC4Di6Xcm18b8kkff1RpFGOJN3ZD115hrxT3GY')
