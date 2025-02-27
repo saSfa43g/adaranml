@@ -28,55 +28,96 @@ app.get('/', (req, res) => {
   </body>`)
 });
 
+
+
 client.on('ready', async () => {
   const { REST, Routes } = require('discord.js');
 
-const commands = [
-  {
-    name: 'setup',
-    description: 'setup Apply',
-  },
-  {
-    name: "block",
-    description: "Block user from using command",
-    options: [
+  
+  const commands = [
+      {
+        name: 'setup',
+        description: 'setup Apply',
+      },
       {
         name: "block",
-        description: "Please Mention User to block",
-        required: true,
-        type: ApplicationCommandOptionType.User,
+        description: "Block user from using command",
+        options: [
+          {
+            name: "user",
+            description: "Please mention user to block",
+            required: true,
+            type: ApplicationCommandOptionType.User,
+          },
+        ],
       },
-    ],
-  },
-  {
-    name: "remove-block",
-    description: "Remove block from user",
-    options: [
       {
         name: "remove-block",
-        description: "Please Mention User to remove block",
-        required: true,
-        type: ApplicationCommandOptionType.User,
+        description: "Remove block from user",
+        options: [
+          {
+            name: "user",
+            description: "Please mention user to remove block",
+            required: true,
+            type: ApplicationCommandOptionType.User,
+          },
+        ],
+      },  
+      {
+        name: "approvals",
+        description: "عرض عدد القبولات التي قام بها الأدمن",
       },
-    ],
-  },  
-];
+      {
+        name: "top-approvals",
+        description: "عرض قائمة بالأدمن الأكثر قبولًا للطلبات",
+      },
+    ];
 
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-try {
-  console.log('Started refreshing application (/) commands.');
+    try {
+      console.log('🚀 Started refreshing application (/) commands.');
+      await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+      console.log('✅ Successfully reloaded application (/) commands.');
+    } catch (error) {
+      console.error('❌ Error reloading commands:', error);
+    }
+  });
 
-  await rest.put(Routes.applicationCommands(config.idbot), { body: commands });
 
-  console.log('Successfully reloaded application (/) commands.');
-} catch (error) {
-  console.error(error);
-}
-  console.log(`Logged in as ${client.user.tag}!`);
-});
 
 const fs = require('fs');
+
+let approvals = {};
+
+// تحميل البيانات المحفوظة مسبقًا
+try {
+  const data = fs.readFileSync('approvals.json', 'utf8');
+  approvals = JSON.parse(data);
+} catch (err) {
+  console.error('خطأ في قراءة ملف القبولات، سيتم إنشاء ملف جديد.', err);
+}
+
+client.on('interactionCreate',async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+if (interaction.commandName === 'approvals') {
+  const adminTag = interaction.user.tag;
+  const count = approvals[adminTag] || 0;
+  interaction.reply(`لقد قمت بقبول ${count} طلبات.`);
+}
+
+if (interaction.commandName === 'top-approvals') {
+  const sortedAdmins = Object.entries(approvals).sort((a, b) => b[1] - a[1]);
+  let message = '**توب الأدمنز حسب القبولات:**\n';
+  sortedAdmins.forEach(([admin, count], index) => {
+    message += `${index + 1}. ${admin}: ${count} قبول\n`;
+  });
+  interaction.reply(message || 'لا توجد بيانات بعد.');
+}
+
+// تأكد أن هذا القوس موجود في نهاية الملف لإغلاق جميع الأحداث المفتوحة
+});
+
 
 let blocklist = [];
 
@@ -237,35 +278,38 @@ client.on('interactionCreate', async (interaction) => {
             content: ":x: حدث خطأ، لا يمكن تنفيذ العملية.",
           });
         }      
-          await interaction.reply({
-              content: `${config.yesmessage} ${getMember.user.tag}`
-          })
-          const newDisabledRow = new ActionRowBuilder()
+        const adminTag = interaction.user.tag;
+        approvals[adminTag] = (approvals[adminTag] || 0) + 1;
+        fs.writeFileSync('approvals.json', JSON.stringify(approvals, null, 2));
+
+        await interaction.reply({
+            content: `${config.yesmessage} ${getMember.user.tag} تمت الموافقة عليه بواسطة ${adminTag}`
+        });
+
+        // تعديل الرسالة لتظهر من قام بالقبول
+        const newDisabledRow = new ActionRowBuilder()
           .setComponents(
-              new ButtonBuilder()
+            new ButtonBuilder()
               .setCustomId('staff_accept_ended')
               .setDisabled()
               .setStyle(ButtonStyle.Success)
               .setEmoji("✅")
-              .setLabel('قبول')
-          )
-          .addComponents(
-              new ButtonBuilder()
+              .setLabel(`قبول - ${adminTag}`),
+            new ButtonBuilder()
               .setCustomId('staff_deny_ended')
               .setDisabled()
-              .setEmoji("❌")
               .setStyle(ButtonStyle.Secondary)
-              .setLabel('رفض')
-          )
-          .addComponents(
+              .setEmoji("❌")
+              .setLabel('رفض'),
             new ButtonBuilder()
-            .setCustomId('staff_block')
-            .setEmoji("🚫")
-            .setDisabled()
-            .setStyle(ButtonStyle.Danger)
-            .setLabel('حظر')
-        )
-          interaction.message.edit({ components: [newDisabledRow] })
+              .setCustomId('staff_block')
+              .setDisabled()
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji("🚫")
+              .setLabel('حظر')
+          )
+
+        interaction.message.edit({ components: [newDisabledRow] })
       }
       if (interaction.customId === 'staff_deny') {
         if (
